@@ -6,16 +6,17 @@ TELEGRAM_CHAT_ID="6985270264"
 logging.basicConfig(level=logging.INFO)
 log=logging.getLogger(__name__)
 def fetch():
- url="https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=15m&range=1d"
- req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
- d=json.loads(urllib.request.urlopen(req,timeout=15).read())
- r=d["chart"]["result"][0]
- t=r["indicators"]["quote"][0]
- return[{"o":o,"h":h,"l":l,"c":c}for o,h,l,c in zip(t["open"],t["high"],t["low"],t["close"])if o and h and l and c]
+ url="https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol=XAU&to_symbol=USD&interval=15min&outputsize=compact&apikey=demo"
+ d=json.loads(urllib.request.urlopen(url,timeout=15).read())
+ k="Time Series FX (15min)"
+ if k not in d:raise ValueError(str(d))
+ rows=sorted(d[k].items())
+ return[{"o":float(v["1. open"]),"h":float(v["2. high"]),"l":float(v["3. low"]),"c":float(v["4. close"])}for t,v in rows][-50:]
 def atr(cs,p=14):
  trs=[max(cs[i]["h"]-cs[i]["l"],abs(cs[i]["h"]-cs[i-1]["c"]),abs(cs[i]["l"]-cs[i-1]["c"]))for i in range(1,len(cs))]
  return sum(trs[-p:])/p
 def sig(cs):
+ if len(cs)<32:return None
  a=atr(cs);pr=cs[-1]["c"];p=cs[-2];c=cs[-1]
  bl=0;br=0;pt=[]
  if p["c"]<p["o"] and c["c"]>c["o"] and c["o"]<=p["c"] and c["c"]>=p["o"]:bl+=1;pt.append("Bullish Engulfing")
@@ -42,7 +43,7 @@ async def run():
   cs=fetch();s=sig(cs)
   if s:
    pl="\n".join(f"* {p}"for p in s["pt"])
-   em="BUY"if s["d"]=="BUY"else"SELL"
+   em="BUY" if s["d"]=="BUY" else "SELL"
    msg=f"{em} XAU/USD\nEntry:{s['e']}\nSL:{s['s']}\nTP:{s['t']}\nRR:1:{s['r']}\n{pl}\nStrength:{s['st']}/4"
    await Bot(TELEGRAM_TOKEN).send_message(TELEGRAM_CHAT_ID,msg)
    log.info(f"Sent {s['d']}")
